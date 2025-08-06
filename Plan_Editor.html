@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卓碼資訊 MES BOX 銷售計畫生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Strategic Blue & Actionable Green -->
+    <!-- Application Structure Plan: A dynamic plan generator transforming the previous static dashboard. The structure is: 1. Annual View: Editable high-level objectives and goals. 2. Strategy View: Textareas for editing core strategies. 3. Quarterly/Monthly Plan Generator: The core of the app, with input fields for all targets, tasks, actions, and KPIs. An "Update Plan" button triggers a full re-render of the charts and recalculates totals, making it a true planning tool. This structure directly addresses the user's request for a modifiable generator. -->
+    <!-- Visualization & Content Choices: 1. Quarterly Breakdown -> Goal: Inform/Track -> Viz: Dynamic Combined Bar/Line Chart (Chart.js) -> Interaction: Updates automatically when quarterly target inputs are changed and the "Update" button is clicked -> Justification: Provides immediate visual feedback on plan modifications. 2. 2025 Execution Plan -> Goal: Organize/Track/Execute/Modify -> Viz: Interactive form with tabs and textareas/inputs (HTML/CSS/JS) -> Interaction: User can edit all plan details -> Justification: This is the core generator functionality, allowing for live optimization of the plan. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f0f4f8;
+            color: #1e293b;
+        }
+        .nav-link {
+            transition: color 0.3s, border-color 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+        .nav-link.active, .nav-link:hover {
+            color: #1d4ed8;
+            border-bottom-color: #1d4ed8;
+        }
+        .content-section {
+            scroll-margin-top: 80px;
+        }
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            max-height: 50vh;
+        }
+        .tab-button.active {
+            background-color: #1d4ed8;
+            color: white;
+            border-color: #1d4ed8;
+        }
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px #bfdbfe;
+        }
+        .gemini-modal { display: none; }
+        .gemini-modal.show { display: flex; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #1d4ed8;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/95 backdrop-blur-lg shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-slate-800">MES BOX 2025 銷售計畫生成器</h1>
+                </div>
+                <nav id="main-nav" class="hidden md:flex space-x-8">
+                    <a href="#annual" class="nav-link font-semibold py-6">年度目標</a>
+                    <a href="#strategy" class="nav-link font-semibold py-6">核心策略</a>
+                    <a href="#quarterly" class="nav-link font-semibold py-6">季度/月份計畫</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        <!-- Annual View -->
+        <section id="annual" class="content-section mb-20">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-black text-blue-700 mb-4">年度目標與策略框架 (Annual Goals)</h2>
+                <p class="max-w-3xl mx-auto text-lg text-slate-600">定義我們的戰略高度，並將其轉化為具體、可衡量的年度成功指標。</p>
+            </div>
+            <div class="card p-6 md:p-8 mb-8">
+                <h3 class="font-bold text-2xl text-center text-slate-800 mb-4">終極目的 (Objective)</h3>
+                <textarea id="objective-input" class="form-textarea text-center text-xl text-slate-600 leading-relaxed" rows="3"></textarea>
+            </div>
+            <div class="card p-6 md:p-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-xl text-slate-800">2025 年度量化總目標 (Goals)</h3>
+                    <button id="update-totals-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">更新年度總計</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mb-8">
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <p class="text-gray-500">年度總業績</p>
+                        <p id="total-revenue" class="text-4xl font-extrabold text-green-600 my-2">NT$ 0</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <p class="text-gray-500">年度總銷售套數</p>
+                        <p id="total-units" class="text-4xl font-extrabold text-blue-600 my-2">0 套</p>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <p class="text-gray-500">年度總商機</p>
+                        <p id="total-opps" class="text-4xl font-extrabold text-yellow-600 my-2">0 件</p>
+                    </div>
+                </div>
+                <h3 class="font-bold text-xl text-slate-800 mb-4 mt-8">2025年季度目標分解</h3>
+                <p class="text-slate-600 mb-6">將年度總目標拆解至各季度，以視覺化方式呈現全年的業績、套數與商機數的增長節奏。Q1為奠基期，目標為0，從Q2開始加速。</p>
+                <div class="chart-container mx-auto max-w-4xl"><canvas id="quarterlyGoalsChart"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Strategy View -->
+        <section id="strategy" class="content-section mb-20">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-black text-blue-700 mb-4">核心策略 (Strategies)</h2>
+                <p class="max-w-3xl mx-auto text-lg text-slate-600">我們的行動由三大核心策略驅動，確保目標的穩健達成。</p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="card p-6 flex flex-col">
+                    <h3 class="font-bold text-xl text-blue-700 mb-3">策略一</h3>
+                    <textarea id="strategy-1-input" class="form-textarea text-sm text-slate-600 mb-4 flex-grow" rows="4"></textarea>
+                </div>
+                <div class="card p-6 flex flex-col">
+                    <h3 class="font-bold text-xl text-blue-700 mb-3">策略二</h3>
+                     <textarea id="strategy-2-input" class="form-textarea text-sm text-slate-600 mb-4 flex-grow" rows="4"></textarea>
+                </div>
+                <div class="card p-6 flex flex-col">
+                    <h3 class="font-bold text-xl text-blue-700 mb-3">策略三</h3>
+                    <textarea id="strategy-3-input" class="form-textarea text-sm text-slate-600 mb-4 flex-grow" rows="4"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quarterly & Monthly View -->
+        <section id="quarterly" class="content-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-black text-blue-700 mb-4">2025 季度 / 月份執行計畫 (Measures)</h2>
+                <p class="max-w-3xl mx-auto text-lg text-slate-600">將年度策略拆解為具體的季度與月份行動方案，確保計畫的可追蹤性與落地執行。點擊下方頁籤切換季度。</p>
+            </div>
+            <div class="card p-6 md:p-8">
+                <div class="flex flex-wrap justify-center border-b border-gray-200 mb-6">
+                    <button data-tab="q1" class="tab-button text-lg font-semibold py-3 px-6 rounded-t-lg border-b-2">第一季度 (Q1)</button>
+                    <button data-tab="q2" class="tab-button text-lg font-semibold py-3 px-6 rounded-t-lg border-b-2">第二季度 (Q2)</button>
+                    <button data-tab="q3" class="tab-button text-lg font-semibold py-3 px-6 rounded-t-lg border-b-2">第三季度 (Q3)</button>
+                    <button data-tab="q4" class="tab-button text-lg font-semibold py-3 px-6 rounded-t-lg border-b-2">第四季度 (Q4)</button>
+                </div>
+                <div id="measures-content">
+                    <!-- Quarterly and Monthly content will be injected here -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <!-- Gemini API Modal -->
+    <div id="gemini-modal" class="gemini-modal fixed inset-0 bg-black bg-opacity-60 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="gemini-modal-title" class="text-xl font-bold">✨ AI 業務助理</h3>
+                <button id="gemini-modal-close" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div id="gemini-modal-content" class="p-6 overflow-y-auto"></div>
+            <div id="gemini-modal-loader" class="p-6 text-center hidden">
+                <div class="spinner mx-auto"></div>
+                <p class="mt-4 text-gray-600">AI 生成中，請稍候...</p>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // --- Data Store ---
+    let planData = {
+        objective: "賦能台灣中小型與創新型製造業，成為其最信賴的數據驅動決策夥伴，並透過提供「OT+IT」整合方案，奠定市場領導者基礎。",
+        strategies: [
+            "從「產品銷售」轉向「方案路徑銷售」：將導入流程本身產品化，銷售一個風險可控、成果可見的「旅程」，以此化解客戶的採購焦慮。",
+            "從「內容行銷」升級為「主動式商機引擎」：建立一套主動出擊、可規模化的商機獲取系統，為銷售漏斗注入高品質潛在客戶。",
+            "從「補助顧問」進化為「財務價值架構師」：將戰術優勢升級為戰略壁壘，為客戶擘劃整體的「財務效益藍圖」，建立對手難以跨越的專業門檻。"
+        ],
+        quarters: {
+            q1: { target: 0, unitsTarget: 0, oppsTarget: 0, strategy: '奠基與引擎啟動期', months: [
+                { name: '一月', task: '奠定基礎建設', revenueTarget: 0, unitsTarget: 0, oppsTarget: 0, marketingActions: '1. 官網上線「數位轉型健檢」預約服務。\n2. 發布《MES白皮書》。', salesActions: '1. **啟動ABM計畫:** 篩選百大潛力企業名單。\n2. **開發銷售工具:** 完成「整合效益試算器」V1.0。\n3. **加速夥伴計畫:** 提前啟動通路夥伴洽談。', kpi: '<strong>領先:</strong> 完成健檢≥2次；試算器V1.0完成；接觸潛在夥伴≥3家。\n<strong>滯後:</strong> 「目標百戶」名單完成。' },
+                { name: '二月', task: '啟動商機引擎', revenueTarget: 0, unitsTarget: 0, oppsTarget: 0, marketingActions: '1. 推出「零成本導入」補助案行銷活動。\n2. 推廣「數位轉型健檢」服務。', salesActions: '1. **執行ABM計畫:** 針對目標百戶進行首次接觸。\n2. **執行健檢服務:** 將預約客戶轉化為SQL。\n3. **銷售「先導專案」:** 以「低風險、成果可見」為訴求，銷售首批付費先導專案。', kpi: '<strong>領先:</strong> ABM有效互動≥5家；完成健檢≥5次。\n<strong>滯後:</strong> 簽訂「先導專案」≥2個；成功媒合補助案≥5件。' },
+                { name: '三月', task: '市場預熱與價值驗證', revenueTarget: 0, unitsTarget: 0, oppsTarget: 0, marketingActions: '1. 舉辦首場線上研討會「你的工廠白忙了嗎？」。\n2. 製作「先導專案」標準化銷售材料。', salesActions: '1. **商機轉化:** 追蹤研討會MQL，轉化為SQL並預約Demo。\n2. **導入價值工程:** 針對成熟商機，首次導入「價值工程」銷售階段，與客戶共創效益報告。\n3. **簽訂夥伴:** 簽訂首批通路合作夥伴。', kpi: '<strong>領先:</strong> 研討會報名≥50人；進入價值工程階段商機≥2個。\n<strong>滯後:</strong> 簽署活躍推薦夥伴≥2家；「先導專案」轉換率≥50%。' }
+            ]},
+            q2: { target: 800, unitsTarget: 25, oppsTarget: 80, strategy: '加速與價值展示期', months: [
+                { name: '四月', task: '汽車場景Demo與深化', revenueTarget: 200, unitsTarget: 6, oppsTarget: 25, marketingActions: '1. 製作汽車零件產業成功案例。\n2. 宣傳整合方案線上發表會。', salesActions: '1. **擴大價值工程:** 全面導入「效益試算器」與價值工程銷售階段。\n2. **聯合Webinar:** 與風巽達舉辦汽車場景Webinar。\n3. **轉化先導專案:** 將Q1成功的先導專案客戶，依「升級路徑」轉為年度合約。', kpi: '<strong>領先:</strong> 銷售提案中效益試算器覆蓋率≥80%。\n<strong>滯後:</strong> Standard方案銷售≥4套；先導專案轉年度合約≥1個。' },
+                { name: '五月', task: '食品場景Demo與進攻', revenueTarget: 250, unitsTarget: 8, oppsTarget: 25, marketingActions: '1. 準備整合方案技術白皮書。\n2. 邀請客戶參與Beta測試。', salesActions: '1. **突破Enterprise:** 主管陪同，推動首批Enterprise方案。\n2. **主題進攻:** 向食品包裝業推廣整合方案。\n3. **夥伴賦能:** 為已簽約夥伴提供首次培訓。', kpi: '<strong>領先:</strong> 簽署夥伴≥5家(累計)；完成夥伴培訓。\n<strong>滯後:</strong> 簽訂Enterprise合約≥2份。' },
+                { name: '六月', task: '商業推廣與試點落地', revenueTarget: 350, unitsTarget: 11, oppsTarget: 30, marketingActions: '1. 發布新聞稿，預告IIoT+MES整合方案。\n2. 製作正式報價單與合約。', salesActions: '1. **試點部署:** 啟動整合方案的客戶現場試點部署。\n2. **展前預熱:** 寄發展會邀請函。\n3. **H1複盤:** 檢討三大強化策略的KPIs達成狀況。', kpi: '<strong>領先:</strong> 預約展會洽談≥15個。\n<strong>滯後:</strong> 簽訂整合方案試點合約≥1份；夥伴貢獻商機比例≥30%。' }
+            ]},
+            q3: { target: 1000, unitsTarget: 35, oppsTarget: 110, strategy: '整合方案上市、決戰大展 暨 市場教育', months: [
+                { name: '七月', task: '整合方案正式上市', revenueTarget: 300, unitsTarget: 10, oppsTarget: 35, marketingActions: '1. 舉辦大型線上發表會。\n2. 投放數位廣告，主打目標產業。', salesActions: '1. **全面推廣:** 全面啟動整合方案銷售，主攻Enterprise。\n2. **展前衝刺:** 全員電話預熱。\n3. **夥伴協同:** 透過合作夥伴轉介商機。', kpi: '<strong>領先:</strong> 發表會出席≥100人；夥伴轉介商機≥5個。\n<strong>滯後:</strong> 整合方案創造有效商機≥10個。' },
+                { name: '八月', task: '決戰大展 (自動化展)', revenueTarget: 400, unitsTarget: 15, oppsTarget: 40, marketingActions: '1. 發表更多成功案例。\n2. 在專業媒體發布技術文章。', salesActions: '1. **攤位展示:** 強打整合方案Demo。\n2. **現場收單:** 推出展場限定優惠。\n3. **聯合拜訪:** 安排「卓碼業務+風巽達技術」的聯合拜訪。', kpi: '<strong>領先:</strong> 展場收集名片≥150張；預約後續拜訪≥10次。\n<strong>滯後:</strong> 現場簽訂LOI≥2份。' },
+                { name: '九月', task: '收網追擊與夥伴簽約', revenueTarget: 300, unitsTarget: 10, oppsTarget: 35, marketingActions: '1. 推出限時評估優惠。\n2. 透過夥伴轉介商機。', salesActions: '1. **名單追蹤:** 2週內完成所有展會名單追蹤。\n2. **簽訂夥伴:** 簽訂第一份白牌(OEM)合約。\n3. **價值升級:** 向既有客戶推銷升級。', kpi: '<strong>領先:</strong> 100%展會A級名單追蹤完成。\n<strong>滯後:</strong> 轉化展會潛客簽約≥5家；夥伴營收貢獻達50萬。' }
+            ]},
+            q4: { target: 1200, unitsTarget: 40, oppsTarget: 110, strategy: '擴大市佔、年度衝刺 暨 客戶價值深化', months: [
+                { name: '十月', task: '年底促案與內容發表', revenueTarget: 350, unitsTarget: 12, oppsTarget: 35, marketingActions: '1. 發表技術白皮書。\n2. 舉辦小型線上座談會。', salesActions: '1. **追加銷售:** 銷售AI等加值模組。\n2. **年底優惠:** 推出「年底前簽約，加贈顧問時數」。\n3. **把握補助案:** 進行最後一波補助案推廣。', kpi: '<strong>領先:</strong> 白皮書下載≥200次；主管陪同拜訪≥5次。\n<strong>滯後:</strong> 加值服務銷售達50萬；月度簽約數≥5家。' },
+                { name: '十一月', task: '鎖定企業預算', revenueTarget: 450, unitsTarget: 15, oppsTarget: 40, marketingActions: '1. 推出「2026年度預算早鳥優惠」。\n2. 收集客戶滿意度回饋。', salesActions: '1. **強力追蹤:** 協助客戶將Enterprise方案納入下年度預算。\n2. **客戶關懷:** 進行滿意度訪談，挖掘增購需求。', kpi: '<strong>領先:</strong> 完成100%新客戶訪談；產生增購機會≥3個。\n<strong>滯後:</strong> 確保年度Enterprise 20套目標達成。' },
+                { name: '十二月', task: '收尾與規劃', revenueTarget: 400, unitsTarget: 13, oppsTarget: 35, marketingActions: '1. 舉辦年度客戶感謝祭。\n2. 規劃2026年計畫。', salesActions: '1. **合約收尾:** 完成最後訂單簽署。\n2. **年度總結:** 召開業務總結會議，檢討OGSM。\n3. **舉辦感謝會:** 邀請風巽達等夥伴參加。', kpi: '<strong>領先:</strong> 提出2026年業績增長20%策略草案。\n<strong>滯後:</strong> 年度總業績達成率≥100%。' }
+            ]}
+        }
+    };
+
+    let quarterlyGoalsChart;
+
+    // --- Navigation Logic ---
+    const navLinks = document.querySelectorAll('#main-nav a');
+    const sections = document.querySelectorAll('.content-section');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                navLinks.forEach(link => {
+                    link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+                });
+            }
+        });
+    }, { rootMargin: "-30% 0px -70% 0px" });
+    sections.forEach(section => observer.observe(section));
+
+    // --- Chart.js Initialization ---
+    function createOrUpdateQuarterlyChart() {
+        const ctx = document.getElementById('quarterlyGoalsChart').getContext('2d');
+        const chartData = {
+            labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+            datasets: [
+                { type: 'bar', label: '季度業績目標 (萬元)', data: Object.values(planData.quarters).map(q => q.target), backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: '#3B82F6', yAxisID: 'y' },
+                { type: 'line', label: '季度套數目標 (套)', data: Object.values(planData.quarters).map(q => q.unitsTarget), borderColor: '#16A34A', backgroundColor: '#16A34A', tension: 0.2, fill: false, yAxisID: 'y1' },
+                { type: 'line', label: '季度商機目標 (件)', data: Object.values(planData.quarters).map(q => q.oppsTarget), borderColor: '#F59E0B', backgroundColor: '#F59E0B', tension: 0.2, fill: false, yAxisID: 'y1' }
+            ]
+        };
+
+        if (quarterlyGoalsChart) {
+            quarterlyGoalsChart.data = chartData;
+            quarterlyGoalsChart.update();
+        } else {
+            quarterlyGoalsChart = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: '業績 (萬元)' }, beginAtZero: true },
+                        y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: '套數 / 商機數' }, grid: { drawOnChartArea: false }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+    }
+
+    // --- Measures Tabs Logic ---
+    const measuresContent = document.getElementById('measures-content');
+    function renderMeasuresContent(quarterKey) {
+        const data = planData.quarters[quarterKey];
+        let monthsHTML = '';
+        data.months.forEach((month, index) => {
+            const monthKey = `${quarterKey}-m${index}`;
+            monthsHTML += `
+                <div class="mb-6 pb-6 border-b last:border-b-0">
+                    <div class="md:flex justify-between items-baseline mb-2">
+                         <textarea id="${monthKey}-task" class="form-textarea text-lg font-bold text-blue-800 w-full md:w-1/2">${month.task}</textarea>
+                        <div class="text-sm text-slate-500 font-semibold mt-1 md:mt-0 flex items-center gap-2">
+                            業績: <input type="number" id="${monthKey}-revenueTarget" class="form-input w-20" value="${month.revenueTarget}">萬 |
+                            套數: <input type="number" id="${monthKey}-unitsTarget" class="form-input w-16" value="${month.unitsTarget}">套 |
+                            商機: <input type="number" id="${monthKey}-oppsTarget" class="form-input w-16" value="${month.oppsTarget}">件
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2 text-sm">
+                        <div class="md:col-span-1 bg-slate-50 p-3 rounded-lg">
+                            <p class="font-semibold mb-1">行銷活動 (Marketing):</p>
+                            <textarea id="${monthKey}-marketingActions" class="form-textarea text-slate-600 space-y-1" rows="6">${month.marketingActions.replace(/<br>/g, '\n')}</textarea>
+                        </div>
+                        <div class="md:col-span-1 bg-slate-50 p-3 rounded-lg">
+                            <p class="font-semibold mb-1">業務活動 (Sales):</p>
+                            <textarea id="${monthKey}-salesActions" class="form-textarea text-slate-600 space-y-1" rows="6">${month.salesActions.replace(/<br>/g, '\n')}</textarea>
+                        </div>
+                        <div class="md:col-span-1 bg-blue-50 p-3 rounded-lg">
+                            <p class="font-semibold mb-1">檢核指標 (KPIs):</p>
+                            <textarea id="${monthKey}-kpi" class="form-textarea text-slate-600" rows="6">${month.kpi.replace(/<br>/g, '\n')}</textarea>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button class="ai-assistant-btn bg-blue-600 text-white text-sm font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2" data-quarter="${quarterKey}" data-month-index="${index}">
+                            ✨ AI 業務助理
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        measuresContent.innerHTML = `
+            <div class="bg-blue-50 p-4 rounded-lg mb-6 text-center">
+                <div class="md:flex justify-center items-center gap-4">
+                    <h3 class="font-bold text-blue-800">季度策略: <input type="text" id="${quarterKey}-strategy" class="form-input inline-block w-auto" value="${data.strategy}"></h3>
+                    <div class="text-sm text-blue-700 mt-1 md:mt-0 font-semibold">
+                        季度總目標 &raquo; 業績: <input type="number" id="${quarterKey}-target" class="form-input inline-block w-20" value="${data.target}">萬 |
+                        套數: <input type="number" id="${quarterKey}-unitsTarget" class="form-input inline-block w-16" value="${data.unitsTarget}">套 |
+                        商機: <input type="number" id="${quarterKey}-oppsTarget" class="form-input inline-block w-16" value="${data.oppsTarget}">件
+                    </div>
+                </div>
+                <button id="update-plan-btn" class="mt-4 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">更新計畫與圖表</button>
+            </div>
+            <div>
+                ${monthsHTML}
+            </div>
+        `;
+        
+        document.getElementById('update-plan-btn').addEventListener('click', updatePlanData);
+        
+        document.querySelectorAll('.ai-assistant-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const quarterKey = e.currentTarget.dataset.quarter;
+                const monthIndex = e.currentTarget.dataset.monthIndex;
+                updatePlanData(); // Ensure data is up-to-date before calling AI
+                const context = planData.quarters[quarterKey].months[monthIndex];
+                openAIAssistantModal(context);
+            });
+        });
+    }
+
+    function updatePlanData() {
+        // Update general fields
+        planData.objective = document.getElementById('objective-input').value;
+        planData.strategies[0] = document.getElementById('strategy-1-input').value;
+        planData.strategies[1] = document.getElementById('strategy-2-input').value;
+        planData.strategies[2] = document.getElementById('strategy-3-input').value;
+
+        // Update quarterly and monthly data
+        for (const qKey of ['q1', 'q2', 'q3', 'q4']) {
+            const quarter = planData.quarters[qKey];
+            quarter.strategy = document.getElementById(`${qKey}-strategy`).value;
+            quarter.target = parseFloat(document.getElementById(`${qKey}-target`).value) || 0;
+            quarter.unitsTarget = parseFloat(document.getElementById(`${qKey}-unitsTarget`).value) || 0;
+            quarter.oppsTarget = parseFloat(document.getElementById(`${qKey}-oppsTarget`).value) || 0;
+
+            quarter.months.forEach((month, index) => {
+                const mKey = `${qKey}-m${index}`;
+                month.task = document.getElementById(`${mKey}-task`).value;
+                month.revenueTarget = parseFloat(document.getElementById(`${mKey}-revenueTarget`).value) || 0;
+                month.unitsTarget = parseFloat(document.getElementById(`${mKey}-unitsTarget`).value) || 0;
+                month.oppsTarget = parseFloat(document.getElementById(`${mKey}-oppsTarget`).value) || 0;
+                month.marketingActions = document.getElementById(`${mKey}-marketingActions`).value;
+                month.salesActions = document.getElementById(`${mKey}-salesActions`).value;
+                month.kpi = document.getElementById(`${mKey}-kpi`).value;
+            });
+        }
+        
+        calculateTotals();
+        createOrUpdateQuarterlyChart();
+        alert('計畫已更新！');
+    }
+    
+    function calculateTotals() {
+        let totalRevenue = 0;
+        let totalUnits = 0;
+        let totalOpps = 0;
+        Object.values(planData.quarters).forEach(q => {
+            totalRevenue += q.target;
+            totalUnits += q.unitsTarget;
+            totalOpps += q.oppsTarget;
+        });
+        document.getElementById('total-revenue').textContent = `NT$ ${totalRevenue.toLocaleString()}萬`;
+        document.getElementById('total-units').textContent = `${totalUnits} 套`;
+        document.getElementById('total-opps').textContent = `${totalOpps} 件`;
+    }
+
+    function populateInitialData() {
+        document.getElementById('objective-input').value = planData.objective;
+        document.getElementById('strategy-1-input').value = planData.strategies[0];
+        document.getElementById('strategy-2-input').value = planData.strategies[1];
+        document.getElementById('strategy-3-input').value = planData.strategies[2];
+        calculateTotals();
+    }
+
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            renderMeasuresContent(button.dataset.tab);
+        });
+    });
+
+    // --- Gemini API Integration ---
+    const modal = document.getElementById('gemini-modal');
+    const modalTitle = document.getElementById('gemini-modal-title');
+    const modalContent = document.getElementById('gemini-modal-content');
+    const modalLoader = document.getElementById('gemini-modal-loader');
+    const modalCloseBtn = document.getElementById('gemini-modal-close');
+
+    modalCloseBtn.addEventListener('click', () => modal.classList.remove('show'));
+    modal.addEventListener('click', (e) => { if(e.target === modal) modal.classList.remove('show'); });
+
+    async function callGeminiAPI(prompt) {
+        modalContent.innerHTML = '';
+        modalLoader.style.display = 'block';
+        
+        let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+        const payload = { contents: chatHistory };
+        const apiKey = ""; 
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) { throw new Error(`API 請求失敗，狀態碼： ${response.status}`); }
+            const result = await response.json();
+            if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
+                const text = result.candidates[0].content.parts[0].text;
+                modalContent.innerHTML = `<pre class="whitespace-pre-wrap text-sm leading-relaxed">${text}</pre>`;
+            } else { throw new Error('從 API 收到的回應格式不正確。'); }
+        } catch (error) {
+            modalContent.innerHTML = `<div class="text-red-500">無法生成內容：<br>${error.message}</div>`;
+        } finally {
+            modalLoader.style.display = 'none';
+        }
+    }
+
+    function openAIAssistantModal(context) {
+        modalTitle.textContent = `✨ ${context.name} AI 業務助理`;
+        modalContent.innerHTML = `
+            <p class="mb-4">請選擇您需要 AI 協助的項目：</p>
+            <div class="flex flex-col space-y-3">
+                <button class="ai-option-btn bg-gray-200 hover:bg-gray-300 p-3 rounded-lg text-left" data-type="email"><strong>生成銷售郵件草稿</strong></button>
+                <button class="ai-option-btn bg-gray-200 hover:bg-gray-300 p-3 rounded-lg text-left" data-type="talking_points"><strong>生成電話溝通要點</strong></button>
+            </div>
+        `;
+        modal.classList.add('show');
+
+        document.querySelectorAll('.ai-option-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const type = button.dataset.type;
+                let prompt = '';
+                const planContext = `我的公司是卓碼資訊，銷售MES BOX系統。目前的銷售計畫如下：\n月份：${context.name}\n核心任務：${context.task}\n行銷活動：${context.marketingActions}\n業務活動：${context.salesActions}\n檢核指標：${context.kpi}`;
+
+                if (type === 'email') {
+                    prompt = `你是一位專業的B2B軟體業務，專門銷售MES系統給台灣的中小製造業。請根據以下的銷售計畫內容，為我草擬一封專業、吸引人且目標明確的開發郵件。郵件的目的是要引起潛在客戶的興趣，並促成一次15分鐘的線上會議來進一步了解他們的需求。\n\n${planContext}`;
+                } else if (type === 'talking_points') {
+                    prompt = `你是一位頂尖的MES銷售顧問。請根據以下的銷售計畫內容，為我生成一份電話開發時的「關鍵溝通要點」。內容需要包含開場白、點出客戶可能的痛點、我們的解決方案如何幫助他們，以及最終的行動呼籲（Call to Action）。\n\n${planContext}`;
+                }
+                callGeminiAPI(prompt);
+            });
+        });
+    }
+
+    // --- Initial Render ---
+    populateInitialData();
+    createOrUpdateQuarterlyChart();
+    document.getElementById('update-totals-btn').addEventListener('click', updatePlanData);
+    document.querySelector('.tab-button[data-tab="q1"]').click();
+});
+</script>
+
+</body>
+</html>
